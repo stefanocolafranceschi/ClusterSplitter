@@ -33,6 +33,31 @@
 #include "TFile.h"
 #include "TString.h"
 
+// Alpaka headers
+#include <alpaka/alpaka.hpp>
+#include "HeterogeneousCore/AlpakaInterface/interface/config.h"
+#include "HeterogeneousCore/AlpakaInterface/interface/workdivision.h"
+
+
+namespace ALPAKA_ACCELERATOR_NAMESPACE {
+
+using namespace cms::alpakatools;
+
+// Define the Alpaka accelerator type
+using Acc = alpaka::acc::AccGpuCudaRt<alpaka::dim::Dim1, uint32_t>;
+using DevAcc = alpaka::dev::Dev<Acc>;
+using Queue = alpaka::queue::QueueCudaRtSync;  // For GPU
+
+// Define a simple Alpaka kernel as a struct
+struct DummyKernel {
+  template <typename Acc, typename T>
+  ALPAKA_FN_ACC void operator()(Acc const& acc, T* result) const {
+    // Simple computation for each thread
+    auto idx = alpaka::idx::getIdx<alpaka::Grid, alpaka::Threads>(acc)[0];
+    result[idx] = idx * 2;  // Example dummy computation
+  }
+};
+
 //
 // class declaration
 //
@@ -89,11 +114,30 @@ trial::~trial() {
 //
 
 void trial::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
-  if (rootFile_) {
-    rootFile_->cd();
-    TNamed configTNamed("ConfigurationString", configString_.c_str());  // Use TNamed to store the string
-    configTNamed.Write();  // Write to the ROOT file
- }
+    // Define a device for the accelerator
+    DevAcc devAcc = alpaka::pltf::getDevByIdx<DevAcc>(0);  // Retrieve device
+    Queue queue(devAcc);  // Set up the queue on this device
+
+    // Define work divisions (e.g., grid and block sizes)
+    const uint32_t elements = 1024;  // Number of elements to process
+    auto workDiv = alpaka::workdiv::WorkDivMembers<1>(elements, 1, 1);
+
+    // Allocate host and device memory
+    auto hostBuf = alpaka::allocBuf<uint32_t, uint32_t>(alpaka::pltf::getDevByIdx<alpaka::pltf::PlatformCpu>(0), elements);
+    auto devBuf = alpaka::allocBuf<uint32_t, uint32_t>(devAcc, elements);
+
+    // Set up the queue for async execution
+    alpaka::queue::QueueCudaRtSync queue(devAcc);
+
+    // Launch the kernel
+    DummyKernel kernel;
+    alpaka::exec<Acc>(queue, workDiv, kernel, devBuf.data());
+
+    // Copy the results back to host memory
+    alpaka::mem::view::copy(queue, hostBuf, devBuf, elements);
+    alpaka::wait(queue);
+
+    // Here, you can store results in a ROOT file or use them as needed
 }
 
 
@@ -146,4 +190,5 @@ void trial::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
 }
 
 //define this as a plug-in
+}
 DEFINE_FWK_MODULE(trial);
