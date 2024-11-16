@@ -4,5 +4,11 @@
 <use name="HeterogeneousCore/AlpakaCore"/>
 <use name="HeterogeneousCore/AlpakaInterface"/>
 <use name="HeterogeneousCore/AlpakaTest"/>
+<use name="ROOT"/>
+<use name="alpaka"/>
 <flags EDM_PLUGIN="1"/>
+<flags DEFINE="ALPAKA_ACC_GPU_CUDA_ENABLE=1"/>
+<flags DEFINE="ALPAKA_ACCELERATOR_NAMESPACE=ALPAKA_ACCELERATOR_CUDA"/>
+<flags ALPAKA_ACC_GPU_CUDA_ENABLE="1"/>
 <flags ALPAKA_BACKENDS="1"/>
+<flags DEBUG_FLAGS="-g -DVERBOSE_ALPAKA=1"/>
